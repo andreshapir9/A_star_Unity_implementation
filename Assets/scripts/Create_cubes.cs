@@ -19,6 +19,8 @@ public class Create_cubes : MonoBehaviour
     GameObject[][] map = new GameObject[20][];
     coordinate entrance = new coordinate(0, 0);
     coordinate exit = new coordinate(19, 9);
+    List<GameObject> path = new List<GameObject>();
+    List<GameObject> enemies = new List<GameObject>();
     void Start()
     {
         //game object jagged array
@@ -42,12 +44,16 @@ public class Create_cubes : MonoBehaviour
         if (Input.GetKeyDown("space"))
         {
             List<GameObject> path = find_shortest_path(map,entrance.x,entrance.y,exit.x,exit.y);
-            foreach (GameObject cube in path)
-            {
-                Debug.Log(cube.GetComponent<cube_information>().x + "," + cube.GetComponent<cube_information>().y);
-                //set cube color to blue
-                cube.GetComponent<Renderer>().material.color = Color.blue;
-            }
+            // foreach (GameObject cube in path)
+            // {
+            //     Debug.Log(cube.GetComponent<cube_information>().x + "," + cube.GetComponent<cube_information>().y);
+            //     //set cube color to blue
+            //     //cube.GetComponent<Renderer>().material.color = Color.blue;
+            // }
+            //crate a temp gameobject at the last index of the path
+            GameObject temp = path[path.Count - 1];
+            print_path_list(temp, ref path);
+            instantiate_enemy(path[0].transform.position);
         }
         //if key R is pressed reset map
         if (Input.GetKeyDown("r"))
@@ -98,11 +104,11 @@ public class Create_cubes : MonoBehaviour
     List<GameObject> find_shortest_path(GameObject[][] map, int entrance_X, int entrance_Y, int exit_X, int exit_Y)
    {
         instantiante_neighbors(ref map);
-
+        set_FValue(ref map);
         GameObject start_spot = map[entrance_X][entrance_Y];
         start_spot.GetComponent<cube_information>().reset_cost();
         GameObject exit_spot = map[exit_X][exit_Y];
-        exit_spot.GetComponent<cube_information>().reset_cost();
+        //exit_spot.GetComponent<cube_information>().reset_cost();
         //create open and close queues
         List<GameObject> open = new List<GameObject>();
         List<GameObject> closed = new List<GameObject>();
@@ -115,14 +121,7 @@ public class Create_cubes : MonoBehaviour
             GameObject current_spot = open[0];
             int current_index = 0;
             //itterate through open
-            for(int i = 0; i < open.Count; i++){
-                //if current spot is less than open[i]
-                if(current_spot.GetComponent<cube_information>().FCost > open[i].GetComponent<cube_information>().FCost){
-                    //set current spot to open[i]
-                    current_spot = open[i];
-                    current_index = i;
-                }
-            }
+            current_spot = get_lowest_f_cost(open, ref current_index);
             //remove current spot from open
             open.RemoveAt(current_index);
             //add current spot to closed
@@ -137,29 +136,35 @@ public class Create_cubes : MonoBehaviour
             //vector of neighbors
             List<GameObject> neighbors = current_spot.GetComponent<cube_information>().neighbors;
             //loop through neighbors
-            //if child is not in closed and is path
-            //g cost = current spot g cost + 1
-            //h cost =  ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
-            //calculate f cost
-            //if child is not in open
-            //add child to open
+            // if child is not in closed and is path
+            // g cost = current spot g cost + 1
+            // h cost =  ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
+            // calculate f cost
+            // if child is not in open
+            // add child to open
             for(int i = 0; i < neighbors.Count; i++){
                 if(!closed.Contains(neighbors[i]) && neighbors[i].GetComponent<cube_information>().value != 4){
-                    neighbors[i].GetComponent<cube_information>().GCost = current_spot.GetComponent<cube_information>().GCost + 1;
-
-                    neighbors[i].GetComponent<cube_information>().HCost = calcl_H_cost(new coordinate(entrance_X, entrance_Y),new coordinate(exit_X, exit_Y), new coordinate(neighbors[i].GetComponent<cube_information>().x, neighbors[i].GetComponent<cube_information>().y));
-                    neighbors[i].GetComponent<cube_information>().CalculateFCost();
                     bool add_to_open = true;
                     foreach (GameObject cube in open){
-                        if(open.Contains(neighbors[i])&& neighbors[i].GetComponent<cube_information>().GCost >current_spot.GetComponent<cube_information>().GCost){ 
+                        if(open.Contains(neighbors[i]) ){ 
+                            add_to_open = false;
+                        }
+                        if(neighbors[i].GetComponent<cube_information>().GCost >current_spot.GetComponent<cube_information>().GCost+ 1){
                             add_to_open = false;
                         }
                     }
                     if(add_to_open){
+                        neighbors[i].GetComponent<cube_information>().GCost = current_spot.GetComponent<cube_information>().GCost + 1;
+
+                        neighbors[i].GetComponent<cube_information>().HCost = calcl_H_cost(new coordinate(entrance_X, entrance_Y),new coordinate(exit_X, exit_Y), new coordinate(neighbors[i].GetComponent<cube_information>().x, neighbors[i].GetComponent<cube_information>().y));
+                        neighbors[i].GetComponent<cube_information>().CalculateFCost();
                         open.Add(neighbors[i]);
+                        //add curent as neighbor parent
+                        neighbors[i].GetComponent<cube_information>().parent = current_spot;
                     }
                 }
             }
+        
         }
         return null;
 
@@ -247,9 +252,72 @@ public class Create_cubes : MonoBehaviour
                     map[i][j].GetComponent<cube_information>().value = 3;
                     //make blocks white
                     map[i][j].GetComponent<Renderer>().material.color = Color.white;
+                    map[i][j].GetComponent<cube_information>().reset_all();
                 }
             }
         }
         add_walls_randomly(ref map);
     }
+    void set_FValue(ref GameObject[][] map){
+        for (int i = 0; i < map.Length; i++)
+        {
+            for (int j = 0; j < map.Length; j++)
+            {
+                //sets fcost to infinity
+                map[i][j].GetComponent<cube_information>().FCost = Mathf.Infinity;
+                //g score to 0
+                map[i][j].GetComponent<cube_information>().GCost = 0;
+            }
+        }
+    }
+    //function takes list of gameobjects a ref gameobject and a ref index 
+    //returns the gameobject with the lowest f cost
+    GameObject get_lowest_f_cost(List<GameObject> list, ref int index){
+        GameObject lowest = list[0];
+        index = 0;
+        for (int i = 0; i < list.Count; i++){
+            if(list[i].GetComponent<cube_information>().FCost < lowest.GetComponent<cube_information>().FCost){
+                lowest = list[i];
+                index = i;
+            }
+        }
+        return lowest;
+    }
+    
+
+//takes in gameobject and prints its coordinates and calls itself on its parent
+//used for debugging
+    void print_path(GameObject current){
+        Debug.Log("(" + current.GetComponent<cube_information>().x + "," + current.GetComponent<cube_information>().y + ")");
+        if(current.GetComponent<cube_information>().parent != null){
+            print_path(current.GetComponent<cube_information>().parent);
+            current.GetComponent<Renderer>().material.color = Color.blue;
+        }
+    }
+    //print path but it fills a list of gameobjects
+    //used for debugging
+    void print_path_list(GameObject current, ref List<GameObject> list){
+        list.Add(current);
+        if(current.GetComponent<cube_information>().parent != null){
+            print_path_list(current.GetComponent<cube_information>().parent, ref list);
+            current.GetComponent<Renderer>().material.color = Color.blue;
+        }
+    }
+    //void instantiate enemy
+    //creates a primitive sphere at the position given
+    //attaches Enemy_basics script to it
+    //sets the radius to 0.5
+    //sets the color to red
+    //sets the tag to enemy
+    void instantiate_enemy(Vector3 position){
+        GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        enemy.transform.position = position;
+        enemy.transform.position = new Vector3(enemy.transform.position.x, enemy.transform.position.y + 1, enemy.transform.position.z);
+        enemy.AddComponent<Enemy_basic>();
+        enemy.GetComponent<Renderer>().material.color = Color.red;
+       // enemy.tag = "enemy";
+        enemy.GetComponent<SphereCollider>().radius = 0.5f;
+        enemies.Add(enemy);
+    }
+
 }

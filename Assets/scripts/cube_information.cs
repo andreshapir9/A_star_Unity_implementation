@@ -38,6 +38,16 @@ public class cube_information : MonoBehaviour
         HCost = 0;
         CalculateFCost();
     }
+    //function to reset all variables
+    public void reset_all()
+    {
+        visited = false;
+        distance = 0;
+        parent = null;
+        reset_cost();
+        neighbors.Clear();
+        
+    }
 
      
 }
