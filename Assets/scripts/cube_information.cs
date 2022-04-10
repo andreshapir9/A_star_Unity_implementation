@@ -13,7 +13,7 @@ public class cube_information : MonoBehaviour
 
     public bool visited = false;
     public int distance;
-    public GameObject parent;
+    public GameObject parent = null;
 
     public float GCost;
     public float HCost;
@@ -46,7 +46,7 @@ public class cube_information : MonoBehaviour
         parent = null;
         reset_cost();
         neighbors.Clear();
-        
+
     }
 
      

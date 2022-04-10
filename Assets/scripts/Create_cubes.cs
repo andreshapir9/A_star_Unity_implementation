@@ -1,7 +1,7 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using UnityEngine.UI;
+using System.Collections;
 // A Data Structure for queue used in BFS
 public class Create_cubes : MonoBehaviour
 {   //struct coordinate 
@@ -15,20 +15,24 @@ public class Create_cubes : MonoBehaviour
             this.y = y;
         }
     }
-
-    GameObject[][] map = new GameObject[20][];
+    int level =1;
+    GameObject[][] map = new GameObject[50][];
     coordinate entrance = new coordinate(0, 0);
-    coordinate exit = new coordinate(19, 9);
+    coordinate exit = new coordinate(45, 35);
     List<GameObject> path = new List<GameObject>();
     List<GameObject> enemies = new List<GameObject>();
+    List<int> enemies_index = new List<int>();
+
+    GameObject canvas;
     void Start()
     {
         //game object jagged array
         create_map(ref map);
         add_entrance_exit(ref map,entrance.x,entrance.y,exit.x,exit.y);
+        canvas = GameObject.Find("Canvas");
+        Debug.Log(canvas.transform.position);
 
-
-        Camera.main.transform.position = new Vector3(3, map.Length*2, 3);
+        Camera.main.transform.position = new Vector3(map.Length-20, map.Length-5, map.Length/2);
         //set camaras x rotation to 90
         Camera.main.transform.rotation = Quaternion.Euler(90, 0, 0);
         //vectors used in bfs t
@@ -44,21 +48,32 @@ public class Create_cubes : MonoBehaviour
         if (Input.GetKeyDown("space"))
         {
             List<GameObject> path = find_shortest_path(map,entrance.x,entrance.y,exit.x,exit.y);
-            // foreach (GameObject cube in path)
-            // {
-            //     Debug.Log(cube.GetComponent<cube_information>().x + "," + cube.GetComponent<cube_information>().y);
-            //     //set cube color to blue
-            //     //cube.GetComponent<Renderer>().material.color = Color.blue;
-            // }
-            //crate a temp gameobject at the last index of the path
-            GameObject temp = path[path.Count - 1];
-            print_path_list(temp, ref path);
-            instantiate_enemy(path[0].transform.position);
+            if(path!=null)
+            {
+                GameObject temp = path[path.Count - 1];
+                print_path_list(temp, ref path);
+                //print path was found and path length is:
+                Debug.Log("path was found and path length is: " + path.Count);
+                //StartCoroutine(create_enemy(path));
+                instantiate_enemy(path[0].transform.position, path);
+            }
+           
         }
         //if key R is pressed reset map
         if (Input.GetKeyDown("r"))
         {
             reset_map(ref map);
+            path.Clear();
+            update_enemy_paths();
+        }
+        //if key C is pressed test enemy path
+        if (Input.GetKeyDown("c"))
+        {
+            foreach (GameObject enemy in enemies)
+            {
+                Debug.Log("we are testing :");
+                enemy.GetComponent<Enemy_basic>().test();
+            }
         }
     }
     //function takes map and fills it with 8 cubes in each index
@@ -224,7 +239,7 @@ public class Create_cubes : MonoBehaviour
             for (int j = 0; j < map.Length; j++)
             {
                 //if random number is less than 0.2
-                if (Random.Range(0, map.Length) < 5 && map[i][j].GetComponent<cube_information>().value == 3)
+                if (Random.Range(0, map.Length) < 10 && map[i][j].GetComponent<cube_information>().value == 3)
                 {
                     //set value to 4
                     map[i][j].GetComponent<cube_information>().value = 4;
@@ -234,15 +249,11 @@ public class Create_cubes : MonoBehaviour
             }
         }
     }
-    //fucnction takes coordinates for start exit and current position
-    //  Return using the distance formula
-    // return ((double)sqrt((current.first - dest.first) * (current.second - dest.first)
+
     float calcl_H_cost(coordinate start, coordinate end, coordinate current)
     {
        return Mathf.Pow(current.x - end.x, 2) + Mathf.Pow(current.y - end.y, 2);
     }
-    //fucntion takes map resets all non entrance and exit nodes value to 3
-    //runs add walls randomly
     void reset_map(ref GameObject[][] map){
         for (int i = 0; i < map.Length; i++)
         {
@@ -270,8 +281,7 @@ public class Create_cubes : MonoBehaviour
             }
         }
     }
-    //function takes list of gameobjects a ref gameobject and a ref index 
-    //returns the gameobject with the lowest f cost
+
     GameObject get_lowest_f_cost(List<GameObject> list, ref int index){
         GameObject lowest = list[0];
         index = 0;
@@ -285,8 +295,7 @@ public class Create_cubes : MonoBehaviour
     }
     
 
-//takes in gameobject and prints its coordinates and calls itself on its parent
-//used for debugging
+
     void print_path(GameObject current){
         Debug.Log("(" + current.GetComponent<cube_information>().x + "," + current.GetComponent<cube_information>().y + ")");
         if(current.GetComponent<cube_information>().parent != null){
@@ -294,22 +303,16 @@ public class Create_cubes : MonoBehaviour
             current.GetComponent<Renderer>().material.color = Color.blue;
         }
     }
-    //print path but it fills a list of gameobjects
-    //used for debugging
+   
     void print_path_list(GameObject current, ref List<GameObject> list){
-        list.Add(current);
         if(current.GetComponent<cube_information>().parent != null){
             print_path_list(current.GetComponent<cube_information>().parent, ref list);
             current.GetComponent<Renderer>().material.color = Color.blue;
+            Debug.Log("(" + current.GetComponent<cube_information>().x + "," + current.GetComponent<cube_information>().y + ")");
         }
     }
-    //void instantiate enemy
-    //creates a primitive sphere at the position given
-    //attaches Enemy_basics script to it
-    //sets the radius to 0.5
-    //sets the color to red
-    //sets the tag to enemy
-    void instantiate_enemy(Vector3 position){
+    
+    void instantiate_enemy(Vector3 position, List<GameObject> list){
         GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         enemy.transform.position = position;
         enemy.transform.position = new Vector3(enemy.transform.position.x, enemy.transform.position.y + 1, enemy.transform.position.z);
@@ -318,6 +321,30 @@ public class Create_cubes : MonoBehaviour
        // enemy.tag = "enemy";
         enemy.GetComponent<SphereCollider>().radius = 0.5f;
         enemies.Add(enemy);
+        enemy.GetComponent<Enemy_basic>().path = list;
+        enemy.GetComponent<Enemy_basic>().destination = map[exit.x][exit.y];
     }
 
+    void instantiate_enemy_per_level( List<GameObject> path, int level){
+         if(canvas.transform.GetChild(0).GetComponent<statistics>().level==1){
+            for(int i = 0;i<level*10;i++){
+            }
+         }
+    }
+    void create_enemy_level1_test(){
+       
+        GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        enemy.AddComponent<Enemy_basic>();
+        enemy.GetComponent<Enemy_basic>().set_enemy(100,4f,1, path, map[exit.x][exit.y], Color.red, map);
+        enemies.Add(enemy);
+    
+    }
+
+
+    void update_enemy_paths(){
+        foreach (GameObject enemy in enemies)
+            {
+                enemy.GetComponent<Enemy_basic>().Update_path(map);
+            }
+    }
 }
